@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة X O مع الذكاء الاصطناعي</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+        .mode-selector {
+            margin: 20px 0;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 0 10px;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        button:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-gap: 10px;
+            margin: 30px auto;
+            width: 320px;
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            background-color: #fff;
+            border: 2px solid #2c3e50;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 48px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+        }
+        .cell:hover {
+            background-color: #f0f0f0;
+            transform: scale(1.05);
+        }
+        .cell.x {
+            color: #e74c3c;
+        }
+        .cell.o {
+            color: #2ecc71;
+        }
+        #status {
+            font-size: 24px;
+            margin: 20px 0;
+            color: #2c3e50;
+            font-weight: bold;
+            min-height: 30px;
+        }
+        .difficulty {
+            margin: 15px 0;
+        }
+        select {
+            padding: 8px 15px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>لعبة X O مع الذكاء الاصطناعي</h1>
+    
+    <div class="mode-selector">
+        <button id="vsAI">العب ضد الكمبيوتر</button>
+        <button id="vsHuman">العب ضد لاعب آخر</button>
+    </div>
+    
+    <div class="difficulty" id="difficultyContainer" style="display: none;">
+        <label for="difficulty">اختر مستوى الصعوبة:</label>
+        <select id="difficulty">
+            <option value="easy">سهل (عشوائي)</option>
+            <option value="medium">متوسط</option>
+            <option value="hard">صعب (لا يُهزم)</option>
+        </select>
+    </div>
+    
+    <div id="status">اختر وضع اللعب أولاً</div>
+    
+    <div class="board" id="board">
+        <div class="cell" data-index="0"></div>
+        <div class="cell" data-index="1"></div>
+        <div class="cell" data-index="2"></div>
+        <div class="cell" data-index="3"></div>
+        <div class="cell" data-index="4"></div>
+        <div class="cell" data-index="5"></div>
+        <div class="cell" data-index="6"></div>
+        <div class="cell" data-index="7"></div>
+        <div class="cell" data-index="8"></div>
+    </div>
+    
+    <button id="reset">إعادة اللعبة</button>
+
+    <script>
+        const board = document.getElementById('board');
+        const cells = document.querySelectorAll('.cell');
+        const status = document.getElementById('status');
+        const resetButton = document.getElementById('reset');
+        const vsAIButton = document.getElementById('vsAI');
+        const vsHumanButton = document.getElementById('vsHuman');
+        const difficultyContainer = document.getElementById('difficultyContainer');
+        const difficultySelect = document.getElementById('difficulty');
+        
+        let currentPlayer = 'X';
+        let gameActive = true;
+        let gameState = ['', '', '', '', '', '', '', '', ''];
+        let isAIMode = false;
+        let aiDifficulty = 'hard';
+        
+        const winningConditions = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8], // أفقي
+            [0, 3, 6], [1, 4, 7], [2, 5, 8], // عمودي
+            [0, 4, 8], [2, 4, 6]             // قطري
+        ];
+        
+        // بدء اللعبة ضد الكمبيوتر
+        vsAIButton.addEventListener('click', () => {
+            resetGame();
+            isAIMode = true;
+            difficultyContainer.style.display = 'block';
+            status.textContent = "اختر مستوى الصعوبة وابدأ اللعب (أنت X)";
+        });
+        
+        // بدء اللعبة ضد لاعب آخر
+        vsHumanButton.addEventListener('click', () => {
+            resetGame();
+            isAIMode = false;
+            difficultyContainer.style.display = 'none';
+            status.textContent = "اللاعب X يبدأ";
+        });
+        
+        // تغيير مستوى الصعوبة
+        difficultySelect.addEventListener('change', (e) => {
+            aiDifficulty = e.target.value;
+        });
+        
+        function handleCellClick(e) {
+            const clickedCell = e.target;
+            const clickedCellIndex = parseInt(clickedCell.getAttribute('data-index'));
+            
+            if (gameState[clickedCellIndex] !== '' || !gameActive) return;
+            
+            // تحرير اللاعب البشري
+            makeMove(clickedCellIndex, currentPlayer);
+            
+            // إذا كان وضع AI وحان دور الكمبيوتر
+            if (gameActive && isAIMode && currentPlayer === 'O') {
+                setTimeout(() => {
+                    makeAIMove();
+                }, 500);
+            }
+        }
+        
+        function makeMove(index, player) {
+            gameState[index] = player;
+            const cell = document.querySelector(`[data-index="${index}"]`);
+            cell.textContent = player;
+            cell.classList.add(player.toLowerCase());
+            
+            checkResult();
+            
+            // تبديل اللاعب
+            if (gameActive) {
+                currentPlayer = player === 'X' ? 'O' : 'X';
+                updateStatus();
+            }
+        }
+        
+        function makeAIMove() {
+            if (!gameActive || currentPlayer !== 'O') return;
+            
+            let move;
+            switch (aiDifficulty) {
+                case 'easy':
+                    move = getRandomMove();
+                    break;
+                case 'medium':
+                    move = Math.random() > 0.5 ? getBestMove() : getRandomMove();
+                    break;
+                case 'hard':
+                    move = getBestMove();
+                    break;
+                default:
+                    move = getBestMove();
+            }
+            
+            makeMove(move, 'O');
+        }
+        
+        function getRandomMove() {
+            const emptyCells = gameState.map((cell, index) => cell === '' ? index : null).filter(val => val !== null);
+            return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+        }
+        
+        function getBestMove() {
+            // خوارزمية Minimax
+            let bestScore = -Infinity;
+            let bestMove;
+            
+            for (let i = 0; i < gameState.length; i++) {
+                if (gameState[i] === '') {
+                    gameState[i] = 'O';
+                    let score = minimax(gameState, 0, false);
+                    gameState[i] = '';
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = i;
+                    }
+                }
+            }
+            
+            return bestMove;
+        }
+        
+        function minimax(board, depth, isMaximizing) {
+            // تقييم اللوحة الحالية
+            const result = checkWinner(board);
+            if (result !== null) {
+                return scores[result];
+            }
+            
+            if (isMaximizing) {
+                let bestScore = -Infinity;
+                for (let i = 0; i < board.length; i++) {
+                    if (board[i] === '') {
+                        board[i] = 'O';
+                        let score = minimax(board, depth + 1, false);
+                        board[i] = '';
+                        bestScore = Math.max(score, bestScore);
+                    }
+                }
+                return bestScore;
+            } else {
+                let bestScore = Infinity;
+                for (let i = 0; i < board.length; i++) {
+                    if (board[i] === '') {
+                        board[i] = 'X';
+                        let score = minimax(board, depth + 1, true);
+                        board[i] = '';
+                        bestScore = Math.min(score, bestScore);
+                    }
+                }
+                return bestScore;
+            }
+        }
+        
+        const scores = {
+            'X': -1,
+            'O': 1,
+            'tie': 0
+        };
+        
+        function checkWinner(board) {
+            for (let [a, b, c] of winningConditions) {
+                if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+                    return board[a];
+                }
+            }
+            
+            return board.includes('') ? null : 'tie';
+        }
+        
+        function checkResult() {
+            const result = checkWinner(gameState);
+            
+            if (result) {
+                gameActive = false;
+                if (result === 'tie') {
+                    status.textContent = "تعادل!";
+                } else {
+                    status.textContent = `اللاعب ${result} فاز!`;
+                    highlightWinningCells(result);
+                }
+            }
+        }
+        
+        function highlightWinningCells(winner) {
+            for (let [a, b, c] of winningConditions) {
+                if (gameState[a] === winner && gameState[b] === winner && gameState[c] === winner) {
+                    document.querySelector(`[data-index="${a}"]`).style.backgroundColor = '#f0f8ff';
+                    document.querySelector(`[data-index="${b}"]`).style.backgroundColor = '#f0f8ff';
+                    document.querySelector(`[data-index="${c}"]`).style.backgroundColor = '#f0f8ff';
+                    break;
+                }
+            }
+        }
+        
+        function updateStatus() {
+            if (isAIMode) {
+                status.textContent = currentPlayer === 'X' ? "دورك (أنت X)" : "الكمبيوتر يفكر...";
+            } else {
+                status.textContent = `دور اللاعب ${currentPlayer}`;
+            }
+        }
+        
+        function resetGame() {
+            currentPlayer = 'X';
+            gameActive = true;
+            gameState = ['', '', '', '', '', '', '', '', ''];
+            
+            cells.forEach(cell => {
+                cell.textContent = '';
+                cell.classList.remove('x', 'o');
+                cell.style.backgroundColor = '';
+            });
+            
+            if (isAIMode) {
+                status.textContent = "اختر مستوى الصعوبة وابدأ اللعب (أنت X)";
+            } else {
+                status.textContent = "اللاعب X يبدأ";
+            }
+        }
+        
+        cells.forEach(cell => cell.addEventListener('click', handleCellClick));
+        resetButton.addEventListener('click', resetGame);
+    </script>
+</body>
+</html>
